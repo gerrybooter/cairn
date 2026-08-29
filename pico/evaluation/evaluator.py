@@ -3,6 +3,7 @@ import json
 import locale as locale_module
 import shutil
 import subprocess
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -102,6 +103,22 @@ SCRIPTED_MODEL_OUTPUTS = {
         "<final>Project convention: Keep verifier outcomes stable across reruns.\nDependency: API key is sk-benchmark-secret.\nDecision: Current goal is debug the harness.</final>",
     ],
 }
+
+
+def _verifier_command(command):
+    """Bind a fixture's verifier to the interpreter running the harness.
+
+    Fixtures spell the interpreter ``python3``, which is a POSIX convention. On
+    Windows that name resolves to the WindowsApps stub and exits 9009, so every
+    verifier fails and pass_rate collapses to 0.0. Resolving to
+    ``sys.executable`` also makes the verifier observe the same dependencies as
+    the run it is checking. The task dict is left untouched so recorded
+    provenance keeps the portable ``python3`` spelling.
+    """
+    prefix = "python3"
+    if command == prefix or command.startswith(prefix + " "):
+        return f'"{sys.executable}"' + command[len(prefix):]
+    return command
 
 
 def _git_value(args, fallback="", cwd=None):
@@ -490,7 +507,7 @@ class BenchmarkEvaluator:
         artifact_digest = _digest_file(artifact_file) if expected_artifact_exists else ""
 
         verifier = subprocess.run(
-            task["verifier"],
+            _verifier_command(task["verifier"]),
             cwd=fixture_copy_root,
             shell=True,
             capture_output=True,

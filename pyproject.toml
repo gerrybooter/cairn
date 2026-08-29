@@ -7,7 +7,11 @@ name = "pico"
 version = "0.1.0"
 description = "Small local coding agent for DeepSeek, OpenAI-compatible, Anthropic-compatible, and Ollama models"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+  # Windows has no system tz database, so zoneinfo.ZoneInfo cannot resolve the
+  # evaluator's Asia/Shanghai default without the PyPI tzdata package.
+  "tzdata; sys_platform == 'win32'",
+]
 
 [project.scripts]
 pico = "pico.cli:main"
