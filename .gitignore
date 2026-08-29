@@ -51,5 +51,9 @@ docs/*
 # OS files
 .DS_Store
 
+# Local-only working notes and agent context (never published)
+CLAUDE.md
+*.local.md
+
 # Packaging metadata
 cairn.egg-info/
