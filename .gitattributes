@@ -1,0 +1,12 @@
+# Normalize all text files to LF in the repository *and* in the working tree.
+# This project is edited from both Windows and WSL; with core.autocrlf=true the
+# checkout would be CRLF while the index stays LF, which makes every file show
+# up as modified after switching environments.
+* text=auto eol=lf
+
+# Keep binaries byte-exact.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

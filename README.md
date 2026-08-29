@@ -1,5 +1,18 @@
 # cairn
 
+> **关于本项目的来源**
+>
+> `cairn` 基于 [Pico](https://gitee.com/htxoffical/pico) 二次开发。上游作者是
+> htxoffical，原项目的架构与实现归其所有；本仓库改名并在此基础上继续开发。
+>
+> 本 fork 目前的改动：
+>
+> - 修复 Windows 上无法运行测试与 benchmark 的两处跨平台缺陷
+>   （`zoneinfo` 缺少 tzdata、verifier 使用 POSIX 的 `python3` 拼写）
+> - 全量重命名为 `cairn`
+>
+> `benchmarks/results/` 下保留的是**上游的运行记录**，不是本 fork 跑出的数据。
+
 `cairn` 是一个面向代码仓库的轻量本地 coding agent。它直接跑在终端里，先看当前工作区，再用一组受约束的工具去读文件、改文件、跑命令，并把会话状态保存在本地 `.cairn/` 目录里。
 
 它更像一个能在仓库里持续工作的命令行助手，不是纯聊天窗口。你可以拿它做代码排查、测试修复、仓库分析，或者让它在当前项目里执行一次性的工程任务。
