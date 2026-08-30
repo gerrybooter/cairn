@@ -16,7 +16,7 @@ def _strip_quotes(value):
 
 
 def _parse_env_line(line):
-    line = line.strip()
+    line = line.lstrip("\ufeff").strip()
     if not line or line.startswith("#"):
         return None
     if line.startswith("export "):
