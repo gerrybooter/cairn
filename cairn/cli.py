@@ -12,7 +12,12 @@ import sys
 import textwrap
 
 from .config import load_project_env, provider_env
-from .providers.clients import AnthropicCompatibleModelClient, OllamaModelClient, OpenAICompatibleModelClient
+from .providers.clients import (
+    AnthropicCompatibleModelClient,
+    OllamaModelClient,
+    OpenAIChatCompletionsModelClient,
+    OpenAICompatibleModelClient,
+)
 from .runtime import Cairn, SessionStore
 from .workspace import WorkspaceContext, middle
 
@@ -25,6 +30,8 @@ DEFAULT_SECRET_ENV_NAMES = (
     "ANTHROPIC_AUTH_TOKEN",
     "CAIRN_DEEPSEEK_API_KEY",
     "DEEPSEEK_API_KEY",
+    "CAIRN_GEMINI_API_KEY",
+    "GEMINI_API_KEY",
     "CAIRN_RIGHT_CODES_API_KEY",
     "RIGHT_CODES_API_KEY",
     "GITHUB_PAT",
@@ -32,10 +39,10 @@ DEFAULT_SECRET_ENV_NAMES = (
 )
 
 WELCOME_ART = (
-    "        /\\___/\\\\",
-    "       (  o o  )",
-    "       /   ^   \\\\",
-    "      /|       |\\\\",
+    "N",
+    "\\  |  /",
+    "--  +  --",
+    "/  |  \\",
 )
 WELCOME_NAME = "cairn"
 WELCOME_SUBTITLE = "local coding agent"
@@ -60,8 +67,10 @@ DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_ANTHROPIC_BASE_URL = "https://www.right.codes/claude/v1"
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-pro"
 DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/anthropic"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_GEMINI_BASE_URL = "https://gcli.ggchan.dev/v1"
 DEFAULT_PROVIDER = "deepseek"
-PROVIDER_CHOICES = ("ollama", "openai", "anthropic", "deepseek")
+PROVIDER_CHOICES = ("ollama", "openai", "anthropic", "deepseek", "gemini")
 SECRET_ENV_NAMES_VAR = "CAIRN_SECRET_ENV_NAMES"
 
 
@@ -102,6 +111,11 @@ def _effective_model(args, provider):
         if model:
             return model
         return DEFAULT_DEEPSEEK_MODEL
+    if provider == "gemini":
+        model = provider_env("CAIRN_GEMINI_MODEL", ("GEMINI_MODEL",))
+        if model:
+            return model
+        return DEFAULT_GEMINI_MODEL
     return DEFAULT_OLLAMA_MODEL
 
 
@@ -164,6 +178,19 @@ def _build_model_client(args):
             # provider-native thinking blocks. Keep the default transport mode
             # deterministic until that protocol is implemented end to end.
             thinking={"type": "disabled"},
+        )
+    if provider == "gemini":
+        # 走通用的 OpenAI Chat Completions 协议，而不是 Responses API。
+        # 第三方中转站基本只实现了前者；base URL 可以换成任意同协议服务。
+        model = _effective_model(args, provider)
+        base_url = getattr(args, "base_url", None) or provider_env("CAIRN_GEMINI_API_BASE", ("GEMINI_API_BASE",), DEFAULT_GEMINI_BASE_URL)
+        api_key = provider_env("CAIRN_GEMINI_API_KEY", ("GEMINI_API_KEY",))
+        return OpenAIChatCompletionsModelClient(
+            model=model,
+            base_url=base_url,
+            api_key=api_key,
+            temperature=args.temperature,
+            timeout=getattr(args, "openai_timeout", getattr(args, "ollama_timeout", 300)),
         )
 
     model = _effective_model(args, provider)

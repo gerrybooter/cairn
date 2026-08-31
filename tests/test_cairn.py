@@ -13,6 +13,7 @@ from cairn import (
     FakeModelClient,
     Cairn,
     OllamaModelClient,
+    OpenAIChatCompletionsModelClient,
     OpenAICompatibleModelClient,
     SessionStore,
     WorkspaceContext,
@@ -290,7 +291,7 @@ def test_welcome_screen_keeps_box_shape_for_long_paths(tmp_path):
     assert len(lines) >= 5
     assert len({len(line) for line in lines}) == 1
     assert "..." in welcome
-    assert "(  o o  )" in welcome
+    assert "--  +  --" in welcome
     assert "MINI-CODING-AGENT" not in welcome
     assert "MINI CODING AGENT" not in welcome
     assert "cairn" in welcome
@@ -396,6 +397,178 @@ def test_openai_compatible_client_posts_expected_responses_payload():
         "stream": False,
         "temperature": 0.2,
     }
+
+
+def test_chat_completions_client_posts_to_chat_completions_path():
+    captured = {}
+
+    class FakeResponse:
+        headers = {"Content-Type": "application/json"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {"role": "assistant", "content": "<final>ok</final>"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 11, "completion_tokens": 4, "total_tokens": 15},
+                }
+            ).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        captured["headers"] = dict(request.headers)
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse()
+
+    client = OpenAIChatCompletionsModelClient(
+        model="gemini-2.5-flash-lite",
+        base_url="https://gcli.ggchan.dev/v1",
+        api_key="sk-relay",
+        temperature=0.2,
+        timeout=30,
+    )
+
+    with patch("urllib.request.urlopen", fake_urlopen):
+        result = client.complete("hello", 42)
+
+    assert result == "<final>ok</final>"
+    # 关键回归点：必须打到 /chat/completions，而不是 Responses API 的 /responses。
+    assert captured["url"] == "https://gcli.ggchan.dev/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer sk-relay"
+    assert captured["headers"]["User-agent"] == "cairn/0.1"
+    assert captured["body"] == {
+        "model": "gemini-2.5-flash-lite",
+        "messages": [{"role": "user", "content": "hello"}],
+        "max_tokens": 42,
+        "stream": False,
+        "temperature": 0.2,
+    }
+    assert client.supports_prompt_cache is False
+    assert client.last_completion_metadata["input_tokens"] == 11
+    assert client.last_completion_metadata["output_tokens"] == 4
+    assert client.last_completion_metadata["finish_reason"] == "stop"
+
+
+def test_chat_completions_client_normalizes_base_url_without_version():
+    captured = {}
+
+    class FakeResponse:
+        headers = {"Content-Type": "application/json"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return json.dumps({"choices": [{"message": {"content": "hi"}}]}).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        return FakeResponse()
+
+    client = OpenAIChatCompletionsModelClient(
+        model="m",
+        base_url="https://gcli.ggchan.dev",
+        api_key="k",
+        temperature=None,
+        timeout=30,
+    )
+
+    with patch("urllib.request.urlopen", fake_urlopen):
+        assert client.complete("hello", 8) == "hi"
+
+    assert captured["url"] == "https://gcli.ggchan.dev/v1/chat/completions"
+
+
+def test_chat_completions_client_raises_when_only_reasoning_is_returned():
+    class FakeResponse:
+        headers = {"Content-Type": "application/json"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            # 思考型模型常见的失败形态：正文在 reasoning_content 里，content 为空。
+            return json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {"content": None, "reasoning_content": "thinking..."},
+                            "finish_reason": "length",
+                        }
+                    ]
+                }
+            ).encode("utf-8")
+
+    client = OpenAIChatCompletionsModelClient(
+        model="m",
+        base_url="https://gcli.ggchan.dev/v1",
+        api_key="k",
+        temperature=0.2,
+        timeout=30,
+    )
+
+    with patch("urllib.request.urlopen", lambda request, timeout: FakeResponse()):
+        with pytest.raises(RuntimeError) as excinfo:
+            client.complete("hello", 8)
+
+    assert "finish_reason=length" in str(excinfo.value)
+
+
+def test_build_agent_uses_chat_completions_client_for_gemini_provider(tmp_path):
+    args = type(
+        "Args",
+        (),
+        {
+            "cwd": str(tmp_path),
+            "provider": "gemini",
+            "model": None,
+            "base_url": None,
+            "host": "http://127.0.0.1:11434",
+            "ollama_timeout": 300,
+            "openai_timeout": 300,
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "resume": None,
+            "approval": "ask",
+            "secret_env_names": [],
+            "max_steps": 6,
+            "max_new_tokens": 512,
+        },
+    )()
+
+    with patch.dict(os.environ, {"CAIRN_GEMINI_API_KEY": "sk-relay"}, clear=True):
+        with patch(
+            "cairn.cli.OllamaModelClient",
+            side_effect=AssertionError("ollama client should not be used"),
+        ), patch(
+            "cairn.cli.OpenAICompatibleModelClient",
+            side_effect=AssertionError("responses client should not be used"),
+        ), patch("cairn.cli.OpenAIChatCompletionsModelClient") as mock_chat:
+            fake_client = mock_chat.return_value
+            agent = cairn_pkg.build_agent(args)
+
+    mock_chat.assert_called_once()
+    assert mock_chat.call_args.kwargs["model"] == "gemini-2.5-flash-lite"
+    assert mock_chat.call_args.kwargs["base_url"] == "https://gcli.ggchan.dev/v1"
+    assert mock_chat.call_args.kwargs["api_key"] == "sk-relay"
+    assert agent.model_client is fake_client
 
 
 def test_openai_compatible_client_sends_prompt_cache_fields_and_records_usage():

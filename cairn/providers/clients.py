@@ -350,6 +350,114 @@ class OpenAICompatibleModelClient:
         return _extract_openai_text(data)
 
 
+def _extract_chat_finish_reason(data):
+    choices = data.get("choices") or []
+    if choices and isinstance(choices[0], dict):
+        return str(choices[0].get("finish_reason", "") or "")
+    return ""
+
+
+class OpenAIChatCompletionsModelClient:
+    """OpenAI-compatible `/chat/completions` 后端。
+
+    为什么和 `OpenAICompatibleModelClient` 分开：
+    那个 client 走的是 OpenAI 较新的 Responses API(`POST /responses`)，
+    而绝大多数第三方中转站只实现了更早、更通用的 Chat Completions 协议。
+    两者的路径和请求体结构都不一样，把它们塞进同一个类里会让分支越来越乱，
+    所以这里单独做一个适配器。
+
+    输入 / 输出：
+    - 输入：完整 prompt、最大输出 token
+    - 输出：模型文本；usage 统计写进 `self.last_completion_metadata`
+    """
+
+    def __init__(self, model, base_url, api_key, temperature, timeout):
+        self.model = model
+        self.base_url = _normalize_versioned_base_url(base_url)
+        self.api_key = api_key
+        self.temperature = temperature
+        self.timeout = timeout
+        # Chat Completions 协议里没有 prompt_cache_key 这类显式缓存参数，
+        # 命中与否完全由服务端决定，所以这里不声明支持，避免 report 里
+        # 出现一个看起来统一、其实没有意义的缓存字段。
+        self.supports_prompt_cache = False
+        self.last_completion_metadata = {}
+
+    def complete(self, prompt, max_new_tokens, prompt_cache_key=None, prompt_cache_retention=None):
+        # 为了保持统一接口，runtime 仍然会把缓存参数传进来；这里显式丢弃。
+        del prompt_cache_key, prompt_cache_retention
+        self.last_completion_metadata = {}
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_new_tokens,
+            "stream": False,
+        }
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
+
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": OPENAI_COMPATIBLE_USER_AGENT,
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        request = urllib.request.Request(
+            self.base_url + "/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        attempts = 3
+        for attempt in range(attempts):
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    body_text = response.read().decode("utf-8")
+                break
+            except urllib.error.HTTPError as exc:
+                body = exc.read().decode("utf-8", errors="replace")
+                if exc.code >= 500 and attempt < attempts - 1:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                raise RuntimeError(f"Chat-completions request failed with HTTP {exc.code}: {body}") from exc
+            except (urllib.error.URLError, RemoteDisconnected) as exc:
+                if attempt < attempts - 1:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                raise RuntimeError(
+                    "Could not reach the chat-completions backend.\n"
+                    f"Base URL: {self.base_url}\n"
+                    f"Model: {self.model}"
+                ) from exc
+
+        try:
+            data = json.loads(body_text)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                "Chat-completions error: backend returned non-JSON content that could not be parsed"
+            ) from exc
+        if data.get("error"):
+            raise RuntimeError(f"Chat-completions error: {data['error']}")
+
+        finish_reason = _extract_chat_finish_reason(data)
+        self.last_completion_metadata = {
+            "prompt_cache_supported": False,
+            "finish_reason": finish_reason,
+            **_extract_usage_cache_details(data),
+        }
+        text = _extract_openai_text(data)
+        if text:
+            return text
+        # 思考型模型经常把正文放在 reasoning_content 里、把 content 留空。
+        # 这里不静默返回空串，而是带着 finish_reason 报错，让失败可诊断。
+        raise RuntimeError(
+            "Chat-completions response contained no assistant text "
+            f"(finish_reason={finish_reason or 'unknown'})"
+        )
+
+
 def _extract_anthropic_text(data):
     texts = []
     for item in data.get("content", []):

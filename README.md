@@ -31,9 +31,10 @@
 - 模块入口是 `python -m cairn`
 - 会话保存在 `.cairn/sessions/`
 - 每次运行的工件保存在 `.cairn/runs/<run_id>/`
-- 支持四类模型后端：
+- 支持五类模型后端：
   - Ollama
   - OpenAI 兼容 Responses API
+  - OpenAI 兼容 Chat Completions API
   - Anthropic 兼容 Messages API
   - DeepSeek Anthropic 兼容 API
 
@@ -189,8 +190,38 @@ CAIRN_ANTHROPIC_API_KEY="your-right-codes-key-for-claude"
 | `openai` | `CAIRN_OPENAI_API_BASE`，回退 `OPENAI_API_BASE`，默认 `https://www.right.codes/codex/v1` | `CAIRN_OPENAI_API_KEY`，回退 `OPENAI_API_KEY`、`CAIRN_RIGHT_CODES_API_KEY`、`RIGHT_CODES_API_KEY`、`CAIRN_ANTHROPIC_API_KEY`、`ANTHROPIC_API_KEY` | `CAIRN_OPENAI_MODEL`，回退 `OPENAI_MODEL`，默认 `gpt-5.4` |
 | `anthropic` | `CAIRN_ANTHROPIC_API_BASE`，回退 `ANTHROPIC_API_BASE`，默认 `https://www.right.codes/claude/v1` | `CAIRN_ANTHROPIC_API_KEY`，回退 `ANTHROPIC_API_KEY`、`CAIRN_RIGHT_CODES_API_KEY`、`RIGHT_CODES_API_KEY`、`CAIRN_OPENAI_API_KEY`、`OPENAI_API_KEY` | `CAIRN_ANTHROPIC_MODEL`，回退 `ANTHROPIC_MODEL`，默认 `claude-sonnet-4-6` |
 | `ollama` | `--host`，默认 `http://127.0.0.1:11434` | 不需要 | `--model`，默认 `qwen3.5:4b` |
+| `gemini` | `CAIRN_GEMINI_API_BASE`，回退 `GEMINI_API_BASE`，默认 `https://gcli.ggchan.dev/v1` | `CAIRN_GEMINI_API_KEY`，回退 `GEMINI_API_KEY` | `CAIRN_GEMINI_MODEL`，回退 `GEMINI_MODEL`，默认 `gemini-2.5-flash-lite` |
 
 如果有额外的敏感环境变量需要从 trace/report 里脱敏，可以用 `CAIRN_SECRET_ENV_NAMES` 配置逗号分隔的变量名，或启动时重复传 `--secret-env-name NAME`。
+
+### Chat Completions 兼容接口（`--provider gemini`）
+
+大多数第三方中转站只实现了通用的 OpenAI **Chat Completions** 协议
+（`POST /v1/chat/completions`），而不是 `--provider openai` 走的 Responses API
+（`POST /v1/responses`）。这两条路径不通用，所以 `gemini` 是一条独立的 provider。
+
+最小配置：
+
+```bash
+CAIRN_PROVIDER=gemini
+CAIRN_GEMINI_API_KEY="your-relay-key"
+```
+
+默认接口和模型是：
+
+```bash
+CAIRN_GEMINI_API_BASE="https://gcli.ggchan.dev/v1"
+CAIRN_GEMINI_MODEL="gemini-2.5-flash-lite"
+```
+
+传输层是通用的，所以任何同协议的中转站都可以直接换 base URL 使用：
+
+```bash
+uv run cairn --provider gemini --base-url https://your-relay.example/v1 --model some-model
+```
+
+如果模型把正文放进了 `reasoning_content` 而 `content` 为空，`complete()` 不会静默
+返回空串，而是带着 `finish_reason` 抛错，方便定位。
 
 ### OpenAI 兼容接口
 
