@@ -14,6 +14,7 @@
 | `context-ablation-v2.json` | 长上下文治理对照实验 |
 | `memory-ablation-v2.json` | 结构化记忆对照实验 |
 | `recovery-ablation-v2.json` | checkpoint / resume 恢复实验 |
+| `security-suite-v2.json` | 工具网关越权 / 非法调用拦截实验 |
 | `cairn-benchmark-core-report.md` | 自动生成的核心 benchmark 汇总 |
 
 本归档只提交可复核的 JSON/Markdown 结果，不提交临时 workspace 副本；每题的摘要、verifier、状态和运行工件字段已经写入 `harness-regression-v2.json`。
@@ -30,6 +31,7 @@ from cairn.evaluation.metrics import (
     run_context_ablation_v2,
     run_memory_ablation_v2,
     run_recovery_ablation_v2,
+    run_security_suite_v2,
     write_benchmark_core_report,
 )
 
@@ -41,12 +43,14 @@ run_harness_regression_v2(
 run_context_ablation_v2(out / "context-ablation-v2.json", repetitions=5)
 run_memory_ablation_v2(out / "memory-ablation-v2.json", repetitions=5)
 run_recovery_ablation_v2(out / "recovery-ablation-v2.json", repetitions=3)
+run_security_suite_v2(out / "security-suite-v2.json", repetitions=3)
 write_benchmark_core_report(
     report_path=out / "cairn-benchmark-core-report.md",
     harness_artifact_path=out / "harness-regression-v2.json",
     context_artifact_path=out / "context-ablation-v2.json",
     memory_artifact_path=out / "memory-ablation-v2.json",
     recovery_artifact_path=out / "recovery-ablation-v2.json",
+    security_artifact_path=out / "security-suite-v2.json",
 )
 PY
 ```
@@ -119,12 +123,32 @@ PY
 
 ### 5. 工具安全与越权拦截
 
-独立的安全实验套件 `run_security_experiment_suite()` 覆盖路径逃逸、符号链接逃逸、搜索越界、审批拒绝、只读拦截、重复调用、非唯一 patch、缺失字段、超时越界、空 delegate 任务等场景，每个场景重复 3 轮，统计 `security_event_type` 与 `tool_error_code` 分布。
+| 指标 | 值 | 来源字段 |
+| --- | --- | --- |
+| 场景数 | 10 | `security-suite-v2.json`: `scenario_count` |
+| 执行注入次数 | 27 | `summary.executed_runs` |
+| 跳过次数 | 3 | `summary.skipped_runs` |
+| 拦截次数 | 27 | `summary.blocked_runs` |
+| block_rate | 100% | `summary.block_rate` |
+| error_attribution_rate | 100% | `summary.error_attribution_rate` |
 
-本机实测（符号链接场景在未开启开发者模式的 Windows 上会被系统拒绝创建，已跳过）：9 类 × 3 轮 = 27 次注入**全部在执行前被拦截**，且都返回可归因错误码：
+怎么测的：`run_security_suite_v2()` 覆盖 10 类越权与非法调用场景，每类重复 3 轮：
+
+- **工作区逃逸**：`../` 路径逃逸读取、符号链接逃逸、搜索路径越界
+- **策略拦截**：审批策略拒绝下的 shell、只读模式下的写文件
+- **控制流异常**：连续完全相同的重复调用
+- **参数非法**：patch 的 `old_text` 非唯一命中、patch 缺失 `new_text`、shell 超时越界、空 delegate 任务
+
+判定方式是看工具网关返回的 `tool_status`。只有网关在**执行前**拒绝动作才会是 `rejected`，所以 `block_rate` 统计的是真实拦截，不是"报错了"。`error_attribution_rate` 进一步要求每次拦截都带上可归因的 `security_event_type` 或 `tool_error_code`——拦住了但说不出为什么，对排查是没有价值的。
+
+本次运行的分布：
 
 - `security_event_counts`：`path_escape` 6、`approval_denied` 3、`read_only_block` 3
 - `tool_error_code_counts`：`invalid_arguments` 18、`approval_denied` 6、`repeated_identical_call` 3
+
+**关于那 3 次跳过**：符号链接场景需要创建 symlink，在未开启开发者模式的 Windows 上会被系统拒绝（`OSError 1314`）。跳过的场景**不计入 `block_rate` 的分母**——它没有证明任何事情，把它算成成功拦截等于虚报。在 Linux / WSL 或开启开发者模式的 Windows 上跑，这一项会正常执行，总数变成 30。
+
+**口径边界**：这层证明的是工具网关在**这批已知攻击面**上的拦截行为，不等于系统整体安全性。没有覆盖的部分包括模型侧的 prompt injection、shell 命令语义层面的危险判定（当前只做 approval 分级，不解析命令意图），以及并发场景。
 
 ## 评测分层的设计意图
 
@@ -134,6 +158,7 @@ PY
 | 上下文治理 | `context-ablation-v2.json` | 上下文模块有没有收益 |
 | 记忆收益 | `memory-ablation-v2.json` | 记忆模块有没有收益 |
 | 恢复正确性 | `recovery-ablation-v2.json` | 恢复边界对不对 |
-| 汇总 | `cairn-benchmark-core-report.md` | 四层一起看 |
+| 工具安全 | `security-suite-v2.json` | 越权动作拦不拦得住 |
+| 汇总 | `cairn-benchmark-core-report.md` | 五层一起看 |
 
 重点不是压成一个总分，而是把不同问题分开测：runtime 合同稳定性、上下文模块收益、记忆模块收益、恢复边界正确性各有独立证据。模型能力、系统能力和运行观测不混写。

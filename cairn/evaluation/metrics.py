@@ -15,6 +15,7 @@ DEFAULT_HARNESS_REGRESSION_V2_PATH = Path("artifacts/harness-regression-v2.json"
 DEFAULT_CONTEXT_ABLATION_V2_PATH = Path("artifacts/context-ablation-v2.json")
 DEFAULT_MEMORY_ABLATION_V2_PATH = Path("artifacts/memory-ablation-v2.json")
 DEFAULT_RECOVERY_ABLATION_V2_PATH = Path("artifacts/recovery-ablation-v2.json")
+DEFAULT_SECURITY_SUITE_V2_PATH = Path("artifacts/security-suite-v2.json")
 DEFAULT_CORE_REPORT_PATH = Path("docs/metrics/cairn-benchmark-core-report.md")
 
 
@@ -1631,23 +1632,69 @@ def run_recovery_ablation_v2(artifact_path=DEFAULT_RECOVERY_ABLATION_V2_PATH, re
     return _write_json_artifact(artifact_path, artifact)
 
 
+def _security_suite_summary(rows):
+    executed = [row for row in rows if not row.get("scenario_skipped")]
+    # "rejected" is the only status the tool gateway reports when it refuses an
+    # action before execution. Counting it directly keeps the block rate honest:
+    # a scenario that was skipped never proves anything and is excluded.
+    rejected = [row for row in executed if str(row.get("tool_status", "")).strip() == "rejected"]
+    attributed = [
+        row
+        for row in rejected
+        if str(row.get("security_event_type", "")).strip() or str(row.get("tool_error_code", "")).strip()
+    ]
+    return {
+        "executed_runs": len(executed),
+        "skipped_runs": len(rows) - len(executed),
+        "blocked_runs": len(rejected),
+        "block_rate": _safe_ratio(len(rejected), len(executed)),
+        "attributed_runs": len(attributed),
+        "error_attribution_rate": _safe_ratio(len(attributed), len(rejected)),
+    }
+
+
+def run_security_suite_v2(artifact_path=DEFAULT_SECURITY_SUITE_V2_PATH, repetitions=3):
+    payload = run_security_experiment_suite(repetitions=repetitions)
+    artifact = {
+        "schema_version": METRICS_SCHEMA_VERSION,
+        "artifact_type": "security-suite-v2",
+        "captured_at": datetime.utcnow().isoformat() + "Z",
+        "scenario_count": payload["scenario_count"],
+        "runs": payload["runs"],
+        "skipped_scenarios": payload["skipped_scenarios"],
+        "summary": _security_suite_summary(payload["rows"]),
+        "security_event_counts": payload["security_event_counts"],
+        "tool_error_code_counts": payload["tool_error_code_counts"],
+        "rows": payload["rows"],
+    }
+    return _write_json_artifact(artifact_path, artifact)
+
+
 def write_benchmark_core_report(
     report_path=DEFAULT_CORE_REPORT_PATH,
     harness_artifact_path=DEFAULT_HARNESS_REGRESSION_V2_PATH,
     context_artifact_path=DEFAULT_CONTEXT_ABLATION_V2_PATH,
     memory_artifact_path=DEFAULT_MEMORY_ABLATION_V2_PATH,
     recovery_artifact_path=DEFAULT_RECOVERY_ABLATION_V2_PATH,
+    security_artifact_path=DEFAULT_SECURITY_SUITE_V2_PATH,
 ):
     harness = json.loads(Path(harness_artifact_path).read_text(encoding="utf-8"))
     context = json.loads(Path(context_artifact_path).read_text(encoding="utf-8"))
     memory = json.loads(Path(memory_artifact_path).read_text(encoding="utf-8"))
     recovery = json.loads(Path(recovery_artifact_path).read_text(encoding="utf-8"))
+    # The security layer is optional so an older artifact set still renders.
+    security_path = Path(security_artifact_path) if security_artifact_path else None
+    security = (
+        json.loads(security_path.read_text(encoding="utf-8"))
+        if security_path is not None and security_path.exists()
+        else None
+    )
 
     enabled_recovery = recovery["variants"]["resume_enabled"]["summary"]
     lines = [
         "# Cairn Benchmark Core Report",
         "",
-        "这轮 benchmark 只收缩到 Harness regression、context ablation、working memory ablation 和 recovery ablation 四层，不把 provider、run aggregation 或 durable memory 的别的结论揉进来。",
+        "这轮 benchmark 收缩到 Harness regression、context ablation、working memory ablation、recovery ablation 和 tool security 五层，不把 provider、run aggregation 或 durable memory 的别的结论揉进来。",
         "",
         "## Harness Regression",
         f"- 固定 regression 任务数：{harness['summary']['total_tasks']}",
@@ -1676,28 +1723,60 @@ def write_benchmark_core_report(
         f"- workspace_drift_detection_rate：{enabled_recovery['workspace_drift_detection_rate']:.2%}",
         f"- resume_false_accept_rate：{enabled_recovery['resume_false_accept_rate']:.2%}",
         "",
-        "## 可以安全写进简历的指标",
-        "- avg_full_prompt_chars",
-        "- avg_raw_prompt_chars",
-        "- avg_prompt_compression_ratio",
-        "- max_prompt_compression_ratio",
-        "- repeated_reads",
-        "- avg_tool_steps",
-        "- correct_rate",
-        "- resume_success_rate",
-        "- workspace_drift_detection_rate",
-        "- resume_false_accept_rate",
-        "",
-        "## 只适合放文档/面试展开的指标",
-        "- current_request_preserved_rate",
-        "- memory_hit_rate",
-        "- stale_reanchor_rate",
-        "- failure_category_counts",
-        "",
-        "## 口径边界",
-        "- Harness regression 只证明 runtime 合同稳定，不证明 provider 上限。",
-        "- Context、memory、recovery 这三层只证明模块收益，不和 provider benchmark 混写。",
     ]
+
+    if security is not None:
+        security_summary = security["summary"]
+        lines.extend(
+            [
+                "## Tool Security Suite",
+                f"- 越权 / 非法调用场景数：{security['scenario_count']}",
+                f"- 执行注入次数：{security_summary['executed_runs']}（跳过 {security_summary['skipped_runs']} 次）",
+                f"- block_rate：{security_summary['block_rate']:.2%}",
+                f"- error_attribution_rate：{security_summary['error_attribution_rate']:.2%}",
+                f"- security_event_counts：{json.dumps(security['security_event_counts'], ensure_ascii=False, sort_keys=True)}",
+                f"- tool_error_code_counts：{json.dumps(security['tool_error_code_counts'], ensure_ascii=False, sort_keys=True)}",
+                "",
+            ]
+        )
+        if security["skipped_scenarios"]:
+            skipped = json.dumps(security["skipped_scenarios"], ensure_ascii=False, sort_keys=True)
+            lines.extend(
+                [
+                    f"跳过的场景：{skipped}。跳过的场景不计入 block_rate，因为它没有证明任何事情。",
+                    "",
+                ]
+            )
+
+    lines.extend(
+        [
+            "## 可以安全写进简历的指标",
+            "- avg_full_prompt_chars",
+            "- avg_raw_prompt_chars",
+            "- avg_prompt_compression_ratio",
+            "- max_prompt_compression_ratio",
+            "- repeated_reads",
+            "- avg_tool_steps",
+            "- correct_rate",
+            "- resume_success_rate",
+            "- workspace_drift_detection_rate",
+            "- resume_false_accept_rate",
+            "- block_rate",
+            "- error_attribution_rate",
+            "",
+            "## 只适合放文档/面试展开的指标",
+            "- current_request_preserved_rate",
+            "- memory_hit_rate",
+            "- stale_reanchor_rate",
+            "- failure_category_counts",
+            "- security_event_counts",
+            "",
+            "## 口径边界",
+            "- Harness regression 只证明 runtime 合同稳定，不证明 provider 上限。",
+            "- Context、memory、recovery 这三层只证明模块收益，不和 provider benchmark 混写。",
+            "- Security suite 证明的是工具网关在这批已知攻击面上的拦截行为，不等于系统整体安全性。",
+        ]
+    )
     report_text = "\n".join(lines) + "\n"
     report_path = Path(report_path)
     report_path.parent.mkdir(parents=True, exist_ok=True)

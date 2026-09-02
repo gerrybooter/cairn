@@ -1,0 +1,342 @@
+{
+  "artifact_type": "security-suite-v2",
+  "captured_at": "2026-09-02T08:32:40.197014Z",
+  "rows": [
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "path_escape_read",
+      "security_event_type": "path_escape",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "path_escape_read",
+      "security_event_type": "path_escape",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "path_escape_read",
+      "security_event_type": "path_escape",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "scenario_id": "symlink_escape",
+      "scenario_skipped": true,
+      "skip_reason": "symlink unsupported: [WinError 1314] \u5ba2\u6237\u7aef\u6ca1\u6709\u6240\u9700\u7684\u7279\u6743\u3002: 'C:\\\\Users\\\\14684\\\\AppData\\\\Local\\\\Temp\\\\cairn-security-exp-6b_1nvjv-symlink-target.txt' -> 'C:\\\\Users\\\\14684\\\\AppData\\\\Local\\\\Temp\\\\cairn-security-exp-6b_1nvjv\\\\linked.txt'"
+    },
+    {
+      "scenario_id": "symlink_escape",
+      "scenario_skipped": true,
+      "skip_reason": "symlink unsupported: [WinError 1314] \u5ba2\u6237\u7aef\u6ca1\u6709\u6240\u9700\u7684\u7279\u6743\u3002: 'C:\\\\Users\\\\14684\\\\AppData\\\\Local\\\\Temp\\\\cairn-security-exp-xxcqmxxw-symlink-target.txt' -> 'C:\\\\Users\\\\14684\\\\AppData\\\\Local\\\\Temp\\\\cairn-security-exp-xxcqmxxw\\\\linked.txt'"
+    },
+    {
+      "scenario_id": "symlink_escape",
+      "scenario_skipped": true,
+      "skip_reason": "symlink unsupported: [WinError 1314] \u5ba2\u6237\u7aef\u6ca1\u6709\u6240\u9700\u7684\u7279\u6743\u3002: 'C:\\\\Users\\\\14684\\\\AppData\\\\Local\\\\Temp\\\\cairn-security-exp-90a_yd0i-symlink-target.txt' -> 'C:\\\\Users\\\\14684\\\\AppData\\\\Local\\\\Temp\\\\cairn-security-exp-90a_yd0i\\\\linked.txt'"
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "search_escape",
+      "security_event_type": "path_escape",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "search_escape",
+      "security_event_type": "path_escape",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "search_escape",
+      "security_event_type": "path_escape",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "approval_denied_shell",
+      "security_event_type": "approval_denied",
+      "tool_error_code": "approval_denied",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "approval_denied_shell",
+      "security_event_type": "approval_denied",
+      "tool_error_code": "approval_denied",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "approval_denied_shell",
+      "security_event_type": "approval_denied",
+      "tool_error_code": "approval_denied",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "read_only_write",
+      "security_event_type": "read_only_block",
+      "tool_error_code": "approval_denied",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "read_only_write",
+      "security_event_type": "read_only_block",
+      "tool_error_code": "approval_denied",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "read_only_write",
+      "security_event_type": "read_only_block",
+      "tool_error_code": "approval_denied",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "repeated_identical_call",
+      "security_event_type": "",
+      "tool_error_code": "repeated_identical_call",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "repeated_identical_call",
+      "security_event_type": "",
+      "tool_error_code": "repeated_identical_call",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "repeated_identical_call",
+      "security_event_type": "",
+      "tool_error_code": "repeated_identical_call",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "patch_nonunique",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "patch_nonunique",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "patch_nonunique",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "patch_missing_new_text",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "patch_missing_new_text",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "patch_missing_new_text",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "timeout_out_of_range",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "timeout_out_of_range",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": false,
+      "risk_level": "high",
+      "scenario_id": "timeout_out_of_range",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "empty_delegate_task",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "empty_delegate_task",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    },
+    {
+      "affected_paths": [],
+      "diff_summary": [],
+      "read_only": true,
+      "risk_level": "low",
+      "scenario_id": "empty_delegate_task",
+      "security_event_type": "",
+      "tool_error_code": "invalid_arguments",
+      "tool_status": "rejected",
+      "workspace_changed": false
+    }
+  ],
+  "runs": 30,
+  "scenario_count": 10,
+  "schema_version": 2,
+  "security_event_counts": {
+    "approval_denied": 3,
+    "path_escape": 6,
+    "read_only_block": 3
+  },
+  "skipped_scenarios": {
+    "symlink_escape": 3
+  },
+  "summary": {
+    "attributed_runs": 27,
+    "block_rate": 1.0,
+    "blocked_runs": 27,
+    "error_attribution_rate": 1.0,
+    "executed_runs": 27,
+    "skipped_runs": 3
+  },
+  "tool_error_code_counts": {
+    "approval_denied": 6,
+    "invalid_arguments": 18,
+    "repeated_identical_call": 3
+  }
+}
