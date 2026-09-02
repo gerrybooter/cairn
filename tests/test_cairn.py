@@ -19,6 +19,7 @@ from cairn import (
     WorkspaceContext,
     build_welcome,
 )
+from cairn.cli import WELCOME_STATUS, WELCOME_SUBTITLE
 
 
 def build_workspace(tmp_path):
@@ -295,7 +296,10 @@ def test_welcome_screen_keeps_box_shape_for_long_paths(tmp_path):
     assert "MINI-CODING-AGENT" not in welcome
     assert "MINI CODING AGENT" not in welcome
     assert "cairn" in welcome
-    assert "local coding agent" in welcome
+    # Assert against the constants so changing the banner copy does not require
+    # editing this test.
+    assert WELCOME_SUBTITLE in welcome
+    assert WELCOME_STATUS in welcome
     assert "// READY" not in welcome
     assert "SLASH" not in welcome
     assert "READY      " not in welcome

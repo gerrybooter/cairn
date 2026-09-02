@@ -45,8 +45,8 @@ WELCOME_ART = (
     "/  |  \\",
 )
 WELCOME_NAME = "cairn"
-WELCOME_SUBTITLE = "local coding agent"
-WELCOME_STATUS = "calm shell, ready for work"
+WELCOME_SUBTITLE = "repository-native coding agent"
+WELCOME_STATUS = "bounded tools, durable state"
 HELP_DETAILS = textwrap.dedent(
     """\
     Commands:
