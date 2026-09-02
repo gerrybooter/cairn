@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from cairn.metrics import collect_resume_metrics, render_resume_metrics_markdown  # noqa: E402
+from cairn.evaluation.metrics import collect_resume_metrics, render_resume_metrics_markdown  # noqa: E402
 
 
 def build_arg_parser():

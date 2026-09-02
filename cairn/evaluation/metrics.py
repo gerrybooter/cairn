@@ -574,7 +574,13 @@ def _scenario_path_escape_read(workspace_root):
 def _scenario_symlink_escape(workspace_root):
     outside = workspace_root.parent / f"{workspace_root.name}-symlink-target.txt"
     outside.write_text("outside\n", encoding="utf-8")
-    (workspace_root / "linked.txt").symlink_to(outside)
+    try:
+        (workspace_root / "linked.txt").symlink_to(outside)
+    except (OSError, NotImplementedError) as error:
+        # Creating a symlink needs elevated rights or developer mode on Windows.
+        # Only an actual attempt reveals that, so the scenario degrades to a
+        # recorded skip instead of taking down the whole suite.
+        return {"scenario_skipped": True, "skip_reason": f"symlink unsupported: {error}"}
     agent = _security_agent(workspace_root)
     agent.run_tool("read_file", {"path": "linked.txt"})
     return dict(agent._last_tool_result_metadata)
@@ -628,6 +634,7 @@ def run_security_experiment_suite(repetitions=3):
     rows = []
     security_event_counts = {}
     tool_error_code_counts = {}
+    skipped_scenarios = {}
     for scenario_id, runner in SECURITY_SCENARIOS:
         for _ in range(repetitions):
             with tempfile.TemporaryDirectory(prefix="cairn-security-exp-") as temp_dir:
@@ -636,15 +643,24 @@ def run_security_experiment_suite(repetitions=3):
                 metadata = runner(workspace_root)
                 metadata["scenario_id"] = scenario_id
                 rows.append(metadata)
+                if metadata.get("scenario_skipped"):
+                    # A skipped scenario proves nothing, so it must not be
+                    # counted as a successful block.
+                    skipped_scenarios[scenario_id] = skipped_scenarios.get(scenario_id, 0) + 1
+                    continue
                 event = str(metadata.get("security_event_type", "")).strip()
                 if event:
                     security_event_counts[event] = security_event_counts.get(event, 0) + 1
                 error_code = str(metadata.get("tool_error_code", "")).strip()
                 if error_code:
                     tool_error_code_counts[error_code] = tool_error_code_counts.get(error_code, 0) + 1
+    skipped_runs = sum(skipped_scenarios.values())
     return {
         "scenario_count": len(SECURITY_SCENARIOS),
         "runs": len(rows),
+        "skipped_runs": skipped_runs,
+        "executed_runs": len(rows) - skipped_runs,
+        "skipped_scenarios": skipped_scenarios,
         "security_event_counts": security_event_counts,
         "tool_error_code_counts": tool_error_code_counts,
         "rows": rows,
