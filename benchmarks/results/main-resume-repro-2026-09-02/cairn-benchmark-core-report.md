@@ -1,4 +1,4 @@
-# Pico Benchmark Core Report
+# Cairn Benchmark Core Report
 
 这轮 benchmark 只收缩到 Harness regression、context ablation、working memory ablation 和 recovery ablation 四层，不把 provider、run aggregation 或 durable memory 的别的结论揉进来。
 
@@ -10,10 +10,10 @@
 
 ## Context Ablation
 - 配置数：12
-- avg_full_prompt_chars：5575.67
-- avg_raw_prompt_chars：6994.33
-- avg_prompt_compression_ratio：16.36%
-- max_prompt_compression_ratio：33.59%
+- avg_full_prompt_chars：5532.67
+- avg_raw_prompt_chars：6951.33
+- avg_prompt_compression_ratio：16.44%
+- max_prompt_compression_ratio：33.75%
 - current_request_preserved_rate：100.00%
 
 ## Working Memory Ablation
