@@ -237,3 +237,72 @@ def test_context_manager_relevant_memory_can_mix_durable_notes(tmp_path):
     assert metadata["relevant_memory"]["selected_durable_count"] == 1
     assert metadata["relevant_memory"]["selected_sources"] == ["project-conventions"]
     assert metadata["relevant_memory"]["selected_kinds"] == ["durable"]
+
+
+def _install_checkpoint(agent, goal):
+    from cairn.checkpoint import CHECKPOINT_SCHEMA_VERSION, current_runtime_identity
+
+    agent.session["checkpoints"] = {
+        "current_id": "ckpt_resume",
+        "items": {
+            "ckpt_resume": {
+                "checkpoint_id": "ckpt_resume",
+                "schema_version": CHECKPOINT_SCHEMA_VERSION,
+                "current_goal": goal,
+                "current_blocker": "step_limit_reached",
+                "next_step": "Resume from the latest checkpoint and continue the task.",
+                "key_files": [],
+                "runtime_identity": current_runtime_identity(agent),
+            }
+        },
+    }
+    agent.evaluate_resume_state()
+
+
+def test_prefix_reduction_preserves_checkpoint_state(tmp_path):
+    """checkpoint 必须扛住 prefix 裁剪。
+
+    它拼在 prefix 段末尾，而裁剪是保头切尾的，所以整段一起裁会恰好删掉恢复
+    最依赖的那部分。任何稳定 prefix 本身就超过段预算的仓库都会每轮静默丢掉它。
+    """
+    goal = "fix the failing auth test in the login module"
+    agent = build_agent(tmp_path, [])
+    _install_checkpoint(agent, goal)
+
+    # 预算远小于 prefix，模拟真实仓库或总预算收紧后的情形。
+    budget = 600
+    assert len(agent.prefix) > budget
+
+    manager = ContextManager(
+        agent,
+        section_budgets={"prefix": budget},
+        section_floors={"prefix": budget},
+    )
+    prompt, metadata = manager.build("continue the task")
+    prefix_metadata = metadata["sections"]["prefix"]
+
+    assert "Task checkpoint:" in prompt
+    assert goal in prompt
+    assert prefix_metadata["checkpoint_preserved"] is True
+    assert prefix_metadata["checkpoint_chars"] > 0
+    assert prefix_metadata["rendered_chars"] <= budget
+
+
+def test_prefix_reduction_reports_when_checkpoint_cannot_fit(tmp_path):
+    """预算装不下 checkpoint 时要如实上报，而不是假装恢复状态还在。"""
+    agent = build_agent(tmp_path, [])
+    _install_checkpoint(agent, "fix the failing auth test in the login module")
+
+    checkpoint_chars = len(agent.render_checkpoint_text())
+    budget = checkpoint_chars // 2
+
+    manager = ContextManager(
+        agent,
+        section_budgets={"prefix": budget},
+        section_floors={"prefix": budget},
+    )
+    _, metadata = manager.build("continue the task")
+    prefix_metadata = metadata["sections"]["prefix"]
+
+    assert prefix_metadata["checkpoint_preserved"] is False
+    assert prefix_metadata["rendered_chars"] <= budget

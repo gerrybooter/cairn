@@ -28,6 +28,7 @@ DEFAULT_REDUCTION_ORDER = ("relevant_memory", "history", "memory", "prefix")
 SECTION_ORDER = ("prefix", "memory", "relevant_memory", "history", "current_request")
 CURRENT_REQUEST_SECTION = "current_request"
 RELEVANT_MEMORY_LIMIT = 3
+CHECKPOINT_SEPARATOR = "\n\n"
 
 
 def _tail_clip(text, limit):
@@ -74,6 +75,48 @@ class ContextManager:
         self._section_floor_overrides = {str(key): int(value) for key, value in (section_floors or {}).items()}
         self.section_floors = self._compute_section_floors()
         self.reduction_order = tuple(reduction_order or DEFAULT_REDUCTION_ORDER)
+        self._checkpoint_text = ""
+
+    def _render_prefix_section(self, base, budget):
+        """渲染 prefix 段，并保护 checkpoint 不被裁掉。
+
+        checkpoint 承载的是恢复时必须信的状态：当前目标、卡点、下一步动作和
+        关键文件锚点。它拼在这一段的末尾，而 `_tail_clip` 是保头切尾的，所以
+        把整段当成一个 blob 去裁，被删掉的恰好是恢复最依赖的那部分。任何
+        稳定 prefix 本身就超过段预算的仓库，都会在每一轮静默丢掉 checkpoint，
+        而 `resume_status` 仍然报告 `full-valid`——状态是对的，模型却没看到。
+
+        所以这里让稳定背景去承担裁剪，只有在预算连 checkpoint 自己都装不下时
+        才裁 checkpoint。
+        """
+        checkpoint_text = str(self._checkpoint_text or "")
+        raw = base + CHECKPOINT_SEPARATOR + checkpoint_text if checkpoint_text else base
+
+        def render(rendered, preserved):
+            return SectionRender(
+                raw=raw,
+                budget=int(budget or 0),
+                rendered=rendered,
+                details={
+                    "checkpoint_chars": len(checkpoint_text),
+                    "checkpoint_preserved": bool(preserved),
+                },
+            )
+
+        if budget is None:
+            return render(raw, bool(checkpoint_text))
+        budget = int(budget)
+        if not checkpoint_text:
+            return render(_tail_clip(raw, budget), False)
+
+        reserved = len(checkpoint_text) + len(CHECKPOINT_SEPARATOR)
+        if budget >= reserved:
+            rendered_base = _tail_clip(base, budget - reserved)
+            return render(rendered_base + CHECKPOINT_SEPARATOR + checkpoint_text, True)
+
+        # 预算连 checkpoint 都装不下：恢复状态比稳定背景更该保留。
+        rendered = _tail_clip(checkpoint_text, budget)
+        return render(rendered, rendered == checkpoint_text)
 
     def build(self, user_message):
         """按预算组装一轮完整 prompt。
@@ -114,8 +157,7 @@ class ContextManager:
         checkpoint_text = ""
         if hasattr(self.agent, "render_checkpoint_text"):
             checkpoint_text = str(self.agent.render_checkpoint_text() or "").strip()
-        if checkpoint_text:
-            section_texts["prefix"] = section_texts["prefix"] + "\n\n" + checkpoint_text
+        self._checkpoint_text = checkpoint_text
         selected_notes = []
         if memory_enabled and relevant_memory_enabled and hasattr(self.agent, "memory") and hasattr(self.agent.memory, "retrieval_candidates"):
             selected_notes = self.agent.memory.retrieval_candidates(user_message, limit=RELEVANT_MEMORY_LIMIT)
@@ -192,7 +234,7 @@ class ContextManager:
         history = list(getattr(self.agent, "session", {}).get("history", []))
         history_raw = self._raw_history_text(history)
         return {
-            "prefix": SectionRender(raw=section_texts["prefix"], budget=len(section_texts["prefix"]), rendered=section_texts["prefix"], details={}),
+            "prefix": self._render_prefix_section(section_texts["prefix"], None),
             "memory": SectionRender(raw=section_texts["memory"], budget=len(section_texts["memory"]), rendered=section_texts["memory"], details={}),
             "relevant_memory": SectionRender(
                 raw=relevant_raw,
@@ -230,6 +272,8 @@ class ContextManager:
             if section == CURRENT_REQUEST_SECTION:
                 raw = section_texts[section]
                 rendered[section] = SectionRender(raw=raw, budget=0, rendered=raw, details={})
+            elif section == "prefix":
+                rendered[section] = self._render_prefix_section(section_texts[section], budget)
             elif section == "relevant_memory":
                 rendered[section] = self._render_relevant_memory(selected_notes or [], int(budget or 0))
             elif section == "history":
@@ -466,6 +510,11 @@ class ContextManager:
             "budget_chars": None,
             "rendered_chars": len(rendered[CURRENT_REQUEST_SECTION].rendered),
         }
+        # checkpoint 是否真的进了 prompt 必须单独上报。之前它只是 prefix 里的一段
+        # 文本，被裁掉时没有任何信号，而 resume_status 仍报告 full-valid。
+        prefix_details = rendered["prefix"].details or {}
+        section_metadata["prefix"]["checkpoint_chars"] = int(prefix_details.get("checkpoint_chars", 0))
+        section_metadata["prefix"]["checkpoint_preserved"] = bool(prefix_details.get("checkpoint_preserved", False))
         return {
             "prompt_chars": len(prompt),
             "prompt_budget_chars": self.total_budget,
